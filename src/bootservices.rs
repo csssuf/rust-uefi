@@ -74,7 +74,7 @@ impl BootServices {
     }
 
     pub fn create_event(&self, event_type: EventType, notify_tpl: TPL, notify_func: Option<EventNotify>, notify_context: *const CVoid) -> Result<Event, Status> {
-        let mut event: Event = Event { 0: 0 as *mut CVoid };
+        let mut event: Event = Event(0 as *mut CVoid);
 
         let result = unsafe { (self.create_event)(event_type, notify_tpl, notify_func, notify_context, &mut event) };
         if result != Status::Success {
