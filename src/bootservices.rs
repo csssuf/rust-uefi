@@ -84,9 +84,9 @@ impl BootServices {
         Ok(event)
     }
 
-    pub fn set_timer(&self, event: Event, delay_type: TimerDelay, delay_ms: u64) -> Status {
+    pub fn set_timer(&self, event: Event, delay_type: TimerDelay, delay: u64) -> Status {
         unsafe {
-            (self.set_timer)(event, delay_type, delay_ms * 10000)
+            (self.set_timer)(event, delay_type, delay)
         }
     }
 
