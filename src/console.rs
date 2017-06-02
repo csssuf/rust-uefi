@@ -149,6 +149,10 @@ impl Console {
 
         Status::Success
     }
+
+    pub fn wait_for_key(&self) -> Event {
+        self.input.wait_for_key
+    }
 }
 
 impl SimpleTextOutput for Console {
