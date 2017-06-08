@@ -12,6 +12,7 @@ mod runtimeservices;
 mod console;
 mod task;
 mod event;
+pub mod util;
 
 
 pub use base::{Handle, Handles, Event, MemoryType, Status, Time};
