@@ -48,9 +48,9 @@ pub static EFI_DEVICE_PATH_UTILITIES_PROTOCOL_GUID: Guid = Guid(0x379BE4E, 0xD70
 #[derive(Debug)]
 #[repr(C)]
 pub struct DevicePathProtocol {
-    type_: u8,
-    sub_type: u8,
-    length: [u8; 2],
+    pub type_: u8,
+    pub sub_type: u8,
+    pub length: [u8; 2],
 }
 
 impl Protocol for DevicePathProtocol {
