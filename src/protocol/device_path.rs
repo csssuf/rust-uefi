@@ -42,6 +42,9 @@ pub static EFI_DEVICE_PATH_PROTOCOL_GUID: Guid = Guid(0x09576E91, 0x6D3F, 0x11D2
 /// GUID for UEFI protocol for converting a DevicePath to text
 pub static EFI_DEVICE_PATH_TO_TEXT_PROTOCOL_GUID: Guid = Guid(0x8B843E20, 0x8132, 0x4852, [0x90,0xCC,0x55,0x1A,0x4E,0x4A,0x7F,0x1C]);
 
+/// GUID for UEFI protocol for device path utilities
+pub static EFI_DEVICE_PATH_UTILITIES_PROTOCOL_GUID: Guid = Guid(0x379BE4E, 0xD706, 0x437D, [0xB0,0x37,0xED,0xB8,0x2F,0xB7,0x72,0xA4]);
+
 #[derive(Debug)]
 #[repr(C)]
 pub struct DevicePathProtocol {
@@ -115,3 +118,42 @@ impl DevicePathToTextProtocol {
     }
 }
 
+#[repr(C)]
+pub struct DevicePathUtilitiesProtocol {
+    get_device_path_size: *const CVoid,
+    duplicate_device_path: *const CVoid,
+    append_device_path: unsafe extern "win64" fn(src1: *const DevicePathProtocol, src2: *const DevicePathProtocol) -> *const DevicePathProtocol,
+    append_device_node: *const CVoid,
+    append_device_path_instance: *const CVoid,
+    get_next_device_path_instance: *const CVoid,
+    is_device_path_multi_instance: *const CVoid,
+    create_device_node: unsafe extern "win64" fn(node_type: u8, node_subtype: u8, node_length: u16) -> *const DevicePathProtocol
+}
+
+impl Protocol for DevicePathUtilitiesProtocol {
+    fn guid() -> &'static Guid {
+        &EFI_DEVICE_PATH_UTILITIES_PROTOCOL_GUID
+    }
+}
+
+impl DevicePathUtilitiesProtocol {
+    pub fn append_device_path(&self, src1: *const DevicePathProtocol, src2: *const DevicePathProtocol) -> Result<*const DevicePathProtocol, Status> {
+        unsafe {
+            let out = (self.append_device_path)(src1, src2);
+            if out == 0 as *const DevicePathProtocol {
+                return Err(Status::InvalidParameter);
+            }
+            Ok(out)
+        }
+    }
+
+    pub fn create_device_node(&self, node_type: u8, node_subtype: u8, node_length: u16) -> Result<*const DevicePathProtocol, Status> {
+        unsafe {
+            let out = (self.create_device_node)(node_type, node_subtype, node_length);
+            if out == 0 as *const DevicePathProtocol {
+                return Err(Status::InvalidParameter);
+            }
+            Ok(out)
+        }
+    }
+}
