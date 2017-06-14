@@ -30,3 +30,5 @@ pub use event::*;
 
 pub use task::*;
 
+pub use void::CVoid;
+
