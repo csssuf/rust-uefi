@@ -5,7 +5,7 @@ use void::{NotYetDef, CVoid};
 use base::{Event, Handle, Handles, MemoryType, Status};
 use event::{EventType, EventNotify, TimerDelay};
 use task::TPL;
-use protocol::{DevicePathProtocol, Protocol};
+use protocol::{DevicePathProtocol, Protocol, get_current_image};
 use guid;
 use table;
 
@@ -68,6 +68,17 @@ pub struct BootServices {
 }
 
 impl BootServices {
+    /// Allocate `size` bytes of memory using type `T`.
+    pub fn allocate_pool<T>(&self, size: usize) -> Result<*mut T, Status> {
+        let mut ptr: *mut u8 = 0 as *mut u8;
+
+        let result = unsafe { (self.allocate_pool)(get_current_image().image_data_type, size, &mut ptr) };
+        if result != Status::Success {
+            return Err(result);
+        }
+        Ok(ptr as *mut T)
+    }
+
     pub fn free_pool<T>(&self, p: *const T) {
         unsafe {
             (self.free_pool)(p as *mut CVoid);

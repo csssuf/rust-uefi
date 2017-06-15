@@ -12,6 +12,7 @@ mod runtimeservices;
 mod console;
 mod task;
 mod event;
+pub mod util;
 
 
 pub use base::{Handle, Handles, Event, MemoryType, Status, Time};
@@ -28,4 +29,6 @@ pub use console::{Attribute, ForegroundColor, BackgroundColor, InputKey, SimpleT
 pub use event::*;
 
 pub use task::*;
+
+pub use void::CVoid;
 
