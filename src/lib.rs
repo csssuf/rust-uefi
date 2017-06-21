@@ -1,5 +1,9 @@
 #![allow(dead_code)]
+#![feature(alloc)]
+#![feature(allocator_api)]
 #![no_std]
+
+extern crate alloc;
 
 pub mod protocol;
 mod void;
@@ -13,6 +17,7 @@ mod console;
 mod task;
 mod event;
 pub mod util;
+mod allocator;
 
 
 pub use base::{Handle, Handles, Event, MemoryType, Status, Time};
