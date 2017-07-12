@@ -2,10 +2,14 @@ use base::{Handle, MemoryType, Status};
 use guid::Guid;
 use void::{CVoid, NotYetDef};
 
+mod block;
 mod device_path;
+mod disk;
 mod serial;
 
+pub use self::block::*;
 pub use self::device_path::*;
+pub use self::disk::*;
 pub use self::serial::*;
 
 pub trait Protocol {
