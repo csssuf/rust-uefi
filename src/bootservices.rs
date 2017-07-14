@@ -41,7 +41,7 @@ pub struct BootServices {
     __reserved: *const NotYetDef,
     register_protocol_notify: *const NotYetDef,
     locate_handle: *const NotYetDef,
-    locate_device_path: *const NotYetDef,
+    locate_device_path: unsafe extern "win64" fn(protocol: &guid::Guid, device_path: *mut *const DevicePathProtocol, device: &mut Handle) -> Status,
     install_configuration_table: *const NotYetDef,
     load_image: unsafe extern "win64" fn(boot_policy: u8, parent_image_handle: Handle, device_path: *const DevicePathProtocol, source_buffer: *const CVoid, source_size: usize, image_handle: *mut Handle) -> Status,
     start_image: unsafe extern "win64" fn(image_handle: Handle, exit_data_size: *mut usize, exit_data: *mut *const u16) -> Status,
@@ -157,6 +157,21 @@ impl BootServices {
         }
 
         return Ok(Handles::new(handles as *mut Handle, nhandles));
+    }
+
+    /// Retrieves the closest device on `device_path` to `device_path` that supports the given
+    /// protocol.
+    pub fn locate_device_path<T: Protocol>(&self, device_path: &DevicePathProtocol) -> Result<(Handle, Option<&DevicePathProtocol>), Status> {
+        let mut out: Handle = Handle::default();
+        let mut device_path_out = device_path as *const DevicePathProtocol;
+        let guid = T::guid();
+
+        let res = unsafe { (self.locate_device_path)(&guid, &mut device_path_out, &mut out) };
+        if res != Status::Success {
+            return Err(res);
+        }
+
+        unsafe { Ok((out, device_path_out.as_ref())) }
     }
 
     /// Load an image by device path and return its handle.
