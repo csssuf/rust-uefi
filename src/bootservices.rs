@@ -61,7 +61,7 @@ pub struct BootServices {
     locate_protocol: unsafe extern "win64" fn(protocol: &guid::Guid, registration: *const CVoid, interface: &mut *mut CVoid) -> Status,
     install_multiple_protocol_interfaces: *const NotYetDef,
     uninstall_multiple_protocol_interfaces: *const NotYetDef,
-    calculate_crc32: *const NotYetDef,
+    calculate_crc32: unsafe extern "win64" fn(data: *const CVoid, data_size: usize, crc32: &mut u32) -> Status,
     copy_mem: unsafe extern "win64" fn(*mut CVoid, *mut CVoid, usize),
     set_mem: unsafe extern "win64" fn(*mut CVoid, usize, u8),
     create_event_ex: *const NotYetDef,
@@ -243,6 +243,24 @@ impl BootServices {
             let r = mem::transmute::<*mut CVoid, &'static T>(ptr);
             Ok(r)
         }
+    }
+
+    /// Calculate the CRC-32 checksum of some data.
+    pub fn calculate_crc32<T: Sized>(&self, data: &T) -> Result<u32, Status> {
+        self.calculate_crc32_sized(data, mem::size_of::<T>())
+    }
+
+    /// Calculate the CRC-32 checksum of some data, using the provided length.
+    pub fn calculate_crc32_sized<T>(&self, data: *const T, size: usize) -> Result<u32, Status> {
+        let mut crc32 = 0;
+
+        let result =
+            unsafe { (self.calculate_crc32)(data as *const CVoid, size, &mut crc32) };
+        if result != Status::Success {
+            return Err(result);
+        }
+
+        Ok(crc32)
     }
 
     /// Copy memory, similar to memcpy.
