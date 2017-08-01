@@ -5,7 +5,7 @@ use void::CVoid;
 /// Type for EFI_HANDLE.
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
-pub struct Handle(*mut CVoid);
+pub struct Handle(pub(crate) *mut CVoid);
 
 impl default::Default for Handle {
     fn default() -> Handle { Handle(ptr::null_mut()) }
