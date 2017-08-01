@@ -9,6 +9,17 @@ use protocol::{DevicePathProtocol, Protocol, get_current_image};
 use guid;
 use table;
 
+bitflags! {
+    pub struct OpenProtocolAttributes: u32 {
+        const BY_HANDLE_PROTOCOL = 0x01;
+        const GET_PROTOCOL = 0x02;
+        const TEST_PROTOCOL = 0x04;
+        const BY_CHILD_CONTROLLER = 0x08;
+        const BY_DRIVER = 0x10;
+        const EXCLUSIVE = 0x20;
+    }
+}
+
 #[repr(C)]
 pub enum LocateSearchType {
     AllHandles = 0,
@@ -53,7 +64,7 @@ pub struct BootServices {
     set_watchdog_timer: unsafe extern "win64" fn(timeout: usize, code: u64, data_size: usize, data: *const u16) -> Status,
     connect_controller: *const NotYetDef,
     disconnect_controller: *const NotYetDef,
-    open_protocol: *const NotYetDef,
+    open_protocol: unsafe extern "win64" fn(handle: Handle, protocol: &guid::Guid, interface: &mut *const CVoid, agent_handle: Handle, controller_handle: Handle, attributes: u32) -> Status,
     close_protocol: unsafe extern "win64" fn(handle: Handle, protocol: &guid::Guid, agent_handle: Handle, controller_handle: Handle) -> Status,
     open_protocol_information: *const NotYetDef,
     protocols_per_handle: *const NotYetDef,
@@ -133,6 +144,21 @@ impl BootServices {
 
         let r = unsafe { mem::transmute::<*mut CVoid, &'static T>(ptr) };
         Ok(r)
+    }
+
+    /// Queries a handle to determine if it supports a specified protocol. If the protocol is
+    /// supported by the handle, it opens the protocol on behalf of the calling agent.
+    pub fn open_protocol<T: Protocol>(&self, handle: Handle, agent_handle: Handle, controller_handle: Handle, attributes: OpenProtocolAttributes) -> Result<&'static T, Status> {
+        let mut ptr: *const CVoid = ptr::null();
+        let guid = T::guid();
+
+        unsafe {
+            let status = (self.open_protocol)(handle, guid, &mut ptr, agent_handle, controller_handle, attributes.bits());
+            match status {
+                Status::Success => Ok(mem::transmute(ptr.as_ref().unwrap())),
+                e => Err(e)
+            }
+        }
     }
 
     // TODO: for the love of types, fix me
