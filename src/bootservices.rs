@@ -2,7 +2,7 @@ use core::ptr;
 use core::mem;
 
 use void::{NotYetDef, CVoid};
-use base::{Event, Handle, Handles, MemoryType, Status};
+use base::{AllocateType, Event, Handle, Handles, MemoryType, Status};
 use event::{EventType, EventNotify, TimerDelay};
 use task::TPL;
 use protocol::{DevicePathProtocol, Protocol, get_current_image};
@@ -33,8 +33,8 @@ pub struct BootServices {
     header: table::TableHeader,
     raise_tpl: *const NotYetDef,
     restore_tpl: *const NotYetDef,
-    allocate_pages: *const NotYetDef,
-    free_pages: *const NotYetDef,
+    allocate_pages: unsafe extern "win64" fn(allocate_type: AllocateType, pool_type: MemoryType, pages: usize, memory: *mut *mut CVoid) -> Status,
+    free_pages: unsafe extern "win64" fn(memory: *mut CVoid, pages: usize) -> Status,
     get_memory_map: *const NotYetDef,
     allocate_pool: unsafe extern "win64" fn(pool_type: MemoryType, size: usize, out: *mut *mut u8) -> Status,
     free_pool: unsafe extern "win64" fn(*mut CVoid),
@@ -79,6 +79,23 @@ pub struct BootServices {
 }
 
 impl BootServices {
+    pub fn allocate_pages(&self, pages: usize) -> Result<*mut CVoid, Status> {
+        let mut ptr: *mut CVoid = ptr::null_mut();
+
+        let result = unsafe { (self.allocate_pages)(AllocateType::AnyPages, get_current_image().image_data_type, pages, &mut ptr) };
+        if result != Status::Success {
+            return Err(result);
+        }
+
+        Ok(ptr)
+    }
+
+    pub fn free_pages<T>(&self, p: *const T, pages: usize) {
+        unsafe {
+            (self.free_pages)(p as *mut CVoid, pages);
+        }
+    }
+
     /// Allocate `size` bytes of memory using type `T`.
     pub fn allocate_pool<T>(&self, size: usize) -> Result<*mut T, Status> {
         let mut ptr: *mut u8 = 0 as *mut u8;

@@ -178,6 +178,15 @@ pub enum MemoryType {
     PalCode = 13,
 }
 
+/// Type for EFI_ALLOCATE_TYPE
+#[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
+#[repr(C)]
+pub enum AllocateType {
+    AnyPages = 0,
+    MaxAddress = 1,
+    Address = 2,
+}
+
 /// UEFI Time structure.
 #[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
