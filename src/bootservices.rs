@@ -159,7 +159,23 @@ impl BootServices {
             }
         }
 
-        let r = unsafe { mem::transmute::<*mut CVoid, &'static T>(ptr) };
+        let r = unsafe { &*(ptr as *const T) };
+        Ok(r)
+    }
+
+    pub fn handle_protocol_mut<T: Protocol>(&self, handle: Handle) -> Result<&'static mut T, Status> {
+        let mut ptr : *mut CVoid = 0 as *mut CVoid;
+        let guid = T::guid();
+
+
+        unsafe {
+            let status = (self.handle_protocol)(handle, guid, &mut ptr);
+            if status != Status::Success {
+                return Err(status);
+            }
+        }
+
+        let r = unsafe { &mut *(ptr as *mut T) };
         Ok(r)
     }
 
