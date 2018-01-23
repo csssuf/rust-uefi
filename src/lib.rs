@@ -103,7 +103,7 @@ pub use guid::*;
 
 pub use systemtable::*;
 
-pub use bootservices::BootServices;
+pub use bootservices::*;
 
 pub use runtimeservices::{ResetType, RuntimeServices};
 

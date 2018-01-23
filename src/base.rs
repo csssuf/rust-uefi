@@ -5,7 +5,7 @@ use void::CVoid;
 /// Type for EFI_HANDLE.
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
-pub struct Handle(*mut CVoid);
+pub struct Handle(pub(crate) *mut CVoid);
 
 impl default::Default for Handle {
     fn default() -> Handle { Handle(ptr::null_mut()) }
@@ -176,6 +176,15 @@ pub enum MemoryType {
     MemoryMappedIo = 11,
     MemoryMappedIoPortSpace = 12,
     PalCode = 13,
+}
+
+/// Type for EFI_ALLOCATE_TYPE
+#[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
+#[repr(C)]
+pub enum AllocateType {
+    AnyPages = 0,
+    MaxAddress = 1,
+    Address = 2,
 }
 
 /// UEFI Time structure.
