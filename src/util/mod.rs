@@ -79,10 +79,10 @@ pub fn str_to_utf16_ptr(chars: &str) -> Result<*const u16, Status> {
                 }
 
                 unsafe {
-                    *(u16_ptr.offset(i as isize)) = c as u16;
+                    *((u16_ptr as *mut u16).offset(i as isize)) = c as u16;
                 }
             }
-            unsafe { *(u16_ptr.offset(chars.len() as isize)) = 0 };
+            unsafe { *((u16_ptr as *mut u16).offset(chars.len() as isize)) = 0 };
 
             Ok(u16_ptr as *const u16)
         })
