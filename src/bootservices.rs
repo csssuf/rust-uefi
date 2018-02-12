@@ -2,12 +2,23 @@ use core::ptr;
 use core::mem;
 
 use void::{NotYetDef, CVoid};
-use base::{Event, Handle, Handles, MemoryType, Status};
+use base::{AllocateType, Event, Handle, Handles, MemoryType, Status};
 use event::{EventType, EventNotify, TimerDelay};
 use task::TPL;
 use protocol::{DevicePathProtocol, Protocol, get_current_image};
 use guid;
 use table;
+
+bitflags! {
+    pub struct OpenProtocolAttributes: u32 {
+        const BY_HANDLE_PROTOCOL = 0x01;
+        const GET_PROTOCOL = 0x02;
+        const TEST_PROTOCOL = 0x04;
+        const BY_CHILD_CONTROLLER = 0x08;
+        const BY_DRIVER = 0x10;
+        const EXCLUSIVE = 0x20;
+    }
+}
 
 #[repr(C)]
 pub enum LocateSearchType {
@@ -22,8 +33,8 @@ pub struct BootServices {
     header: table::TableHeader,
     raise_tpl: *const NotYetDef,
     restore_tpl: *const NotYetDef,
-    allocate_pages: *const NotYetDef,
-    free_pages: *const NotYetDef,
+    allocate_pages: unsafe extern "win64" fn(allocate_type: AllocateType, pool_type: MemoryType, pages: usize, memory: *mut *mut CVoid) -> Status,
+    free_pages: unsafe extern "win64" fn(memory: *mut CVoid, pages: usize) -> Status,
     get_memory_map: *const NotYetDef,
     allocate_pool: unsafe extern "win64" fn(pool_type: MemoryType, size: usize, out: *mut *mut u8) -> Status,
     free_pool: unsafe extern "win64" fn(*mut CVoid),
@@ -41,7 +52,7 @@ pub struct BootServices {
     __reserved: *const NotYetDef,
     register_protocol_notify: *const NotYetDef,
     locate_handle: *const NotYetDef,
-    locate_device_path: *const NotYetDef,
+    locate_device_path: unsafe extern "win64" fn(protocol: &guid::Guid, device_path: *mut *const DevicePathProtocol, device: &mut Handle) -> Status,
     install_configuration_table: *const NotYetDef,
     load_image: unsafe extern "win64" fn(boot_policy: u8, parent_image_handle: Handle, device_path: *const DevicePathProtocol, source_buffer: *const CVoid, source_size: usize, image_handle: *mut Handle) -> Status,
     start_image: unsafe extern "win64" fn(image_handle: Handle, exit_data_size: *mut usize, exit_data: *mut *const u16) -> Status,
@@ -53,7 +64,7 @@ pub struct BootServices {
     set_watchdog_timer: unsafe extern "win64" fn(timeout: usize, code: u64, data_size: usize, data: *const u16) -> Status,
     connect_controller: *const NotYetDef,
     disconnect_controller: *const NotYetDef,
-    open_protocol: *const NotYetDef,
+    open_protocol: unsafe extern "win64" fn(handle: Handle, protocol: &guid::Guid, interface: &mut *const CVoid, agent_handle: Handle, controller_handle: Handle, attributes: u32) -> Status,
     close_protocol: unsafe extern "win64" fn(handle: Handle, protocol: &guid::Guid, agent_handle: Handle, controller_handle: Handle) -> Status,
     open_protocol_information: *const NotYetDef,
     protocols_per_handle: *const NotYetDef,
@@ -61,13 +72,30 @@ pub struct BootServices {
     locate_protocol: unsafe extern "win64" fn(protocol: &guid::Guid, registration: *const CVoid, interface: &mut *mut CVoid) -> Status,
     install_multiple_protocol_interfaces: *const NotYetDef,
     uninstall_multiple_protocol_interfaces: *const NotYetDef,
-    calculate_crc32: *const NotYetDef,
+    calculate_crc32: unsafe extern "win64" fn(data: *const CVoid, data_size: usize, crc32: &mut u32) -> Status,
     copy_mem: unsafe extern "win64" fn(*mut CVoid, *mut CVoid, usize),
     set_mem: unsafe extern "win64" fn(*mut CVoid, usize, u8),
     create_event_ex: *const NotYetDef,
 }
 
 impl BootServices {
+    pub fn allocate_pages(&self, pages: usize) -> Result<*mut CVoid, Status> {
+        let mut ptr: *mut CVoid = ptr::null_mut();
+
+        let result = unsafe { (self.allocate_pages)(AllocateType::AnyPages, get_current_image().image_data_type, pages, &mut ptr) };
+        if result != Status::Success {
+            return Err(result);
+        }
+
+        Ok(ptr)
+    }
+
+    pub fn free_pages<T>(&self, p: *const T, pages: usize) {
+        unsafe {
+            (self.free_pages)(p as *mut CVoid, pages);
+        }
+    }
+
     /// Allocate `size` bytes of memory using type `T`.
     pub fn allocate_pool<T>(&self, size: usize) -> Result<*mut T, Status> {
         let mut ptr: *mut u8 = 0 as *mut u8;
@@ -131,8 +159,39 @@ impl BootServices {
             }
         }
 
-        let r = unsafe { mem::transmute::<*mut CVoid, &'static T>(ptr) };
+        let r = unsafe { &*(ptr as *const T) };
         Ok(r)
+    }
+
+    pub fn handle_protocol_mut<T: Protocol>(&self, handle: Handle) -> Result<&'static mut T, Status> {
+        let mut ptr : *mut CVoid = 0 as *mut CVoid;
+        let guid = T::guid();
+
+
+        unsafe {
+            let status = (self.handle_protocol)(handle, guid, &mut ptr);
+            if status != Status::Success {
+                return Err(status);
+            }
+        }
+
+        let r = unsafe { &mut *(ptr as *mut T) };
+        Ok(r)
+    }
+
+    /// Queries a handle to determine if it supports a specified protocol. If the protocol is
+    /// supported by the handle, it opens the protocol on behalf of the calling agent.
+    pub fn open_protocol<T: Protocol>(&self, handle: Handle, agent_handle: Handle, controller_handle: Handle, attributes: OpenProtocolAttributes) -> Result<&'static T, Status> {
+        let mut ptr: *const CVoid = ptr::null();
+        let guid = T::guid();
+
+        unsafe {
+            let status = (self.open_protocol)(handle, guid, &mut ptr, agent_handle, controller_handle, attributes.bits());
+            match status {
+                Status::Success => Ok(mem::transmute(ptr.as_ref().unwrap())),
+                e => Err(e)
+            }
+        }
     }
 
     // TODO: for the love of types, fix me
@@ -157,6 +216,21 @@ impl BootServices {
         }
 
         return Ok(Handles::new(handles as *mut Handle, nhandles));
+    }
+
+    /// Retrieves the closest device on `device_path` to `device_path` that supports the given
+    /// protocol.
+    pub fn locate_device_path<T: Protocol>(&self, device_path: &DevicePathProtocol) -> Result<(Handle, Option<&DevicePathProtocol>), Status> {
+        let mut out: Handle = Handle::default();
+        let mut device_path_out = device_path as *const DevicePathProtocol;
+        let guid = T::guid();
+
+        let res = unsafe { (self.locate_device_path)(&guid, &mut device_path_out, &mut out) };
+        if res != Status::Success {
+            return Err(res);
+        }
+
+        unsafe { Ok((out, device_path_out.as_ref())) }
     }
 
     /// Load an image by device path and return its handle.
@@ -228,6 +302,24 @@ impl BootServices {
             let r = mem::transmute::<*mut CVoid, &'static T>(ptr);
             Ok(r)
         }
+    }
+
+    /// Calculate the CRC-32 checksum of some data.
+    pub fn calculate_crc32<T: Sized>(&self, data: &T) -> Result<u32, Status> {
+        self.calculate_crc32_sized(data, mem::size_of::<T>())
+    }
+
+    /// Calculate the CRC-32 checksum of some data, using the provided length.
+    pub fn calculate_crc32_sized<T>(&self, data: *const T, size: usize) -> Result<u32, Status> {
+        let mut crc32 = 0;
+
+        let result =
+            unsafe { (self.calculate_crc32)(data as *const CVoid, size, &mut crc32) };
+        if result != Status::Success {
+            return Err(result);
+        }
+
+        Ok(crc32)
     }
 
     /// Copy memory, similar to memcpy.

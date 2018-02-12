@@ -1,11 +1,15 @@
 use base::{Handle, MemoryType, Status};
 use guid::Guid;
-use void::NotYetDef;
+use void::{CVoid, NotYetDef};
 
+mod block;
 mod device_path;
+mod disk;
 mod serial;
 
+pub use self::block::*;
 pub use self::device_path::*;
+pub use self::disk::*;
 pub use self::serial::*;
 
 pub trait Protocol {
@@ -16,6 +20,7 @@ pub trait Protocol {
 pub static EFI_LOADED_IMAGE_PROTOCOL_GUID: Guid = Guid(0x5B1B31A1, 0x9562, 0x11d2, [0x8E,0x3F,0x00,0xA0,0xC9,0x69,0x72,0x3B]);
 
 static mut THIS_LOADED_IMAGE: *const LoadedImageProtocol = 0 as *const LoadedImageProtocol;
+static mut THIS_LOADED_IMAGE_HANDLE: Handle = Handle(0 as *mut CVoid);
 
 #[derive(Debug)]
 #[repr(C)]
@@ -26,8 +31,8 @@ pub struct LoadedImageProtocol {
     pub device_handle: Handle,
     pub file_path: *const DevicePathProtocol,
     __reserved: *const NotYetDef,
-    load_options_size: u32,
-    load_options: *const NotYetDef,
+    pub load_options_size: u32,
+    pub load_options: *const CVoid,
     pub image_base: usize,
     pub image_size: u64,
     image_code_type: MemoryType,
@@ -49,6 +54,7 @@ pub fn set_current_image(handle: Handle) -> Result<&'static LoadedImageProtocol,
     let loaded_image_proto: Result<&'static LoadedImageProtocol, Status> = st.boot_services().handle_protocol(handle);
     if let Ok(image) = loaded_image_proto {
         unsafe {
+            THIS_LOADED_IMAGE_HANDLE = handle;
             THIS_LOADED_IMAGE = image;
         }
     }
@@ -59,6 +65,12 @@ pub fn set_current_image(handle: Handle) -> Result<&'static LoadedImageProtocol,
 pub fn get_current_image() -> &'static LoadedImageProtocol {
     unsafe {
         &*THIS_LOADED_IMAGE
+    }
+}
+
+pub fn get_current_image_handle() -> Handle {
+    unsafe {
+        THIS_LOADED_IMAGE_HANDLE
     }
 }
 
